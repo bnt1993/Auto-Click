@@ -46,7 +46,7 @@ jobs:
 
         with:
 
-          name: Auto click-Windows
-
-          path: dist AutoclickVN.exe
+          name: AutoClickRecorder-Windows
+          path: dist/Autoclick.exe
+          if-no-files-found: error
  
