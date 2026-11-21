@@ -355,10 +355,9 @@ class App:
             windows=self.parse_windows(self.window_ranges.get()) if use_windows else []
             end_date=datetime.date.fromisoformat(self.date_end.get().strip()) if use_windows else run_date
             if use_windows and end_date<run_date:raise ValueError('Ngày kết thúc phải >= ngày bắt đầu')
-            if use_windows and loops==0:raise ValueError('Chế độ V5 dùng khoảng ngày kết thúc; số vòng không được bằng 0')
         except Exception as e:return messagebox.showerror('Cấu hình V5 không hợp lệ',str(e))
         if self.excel_mode.get() and not self.excel_rows:return messagebox.showerror('Thiếu Excel','Nạp file Excel trước khi chạy chế độ từng dòng')
-        if not confirmed and not messagebox.askyesno('Xác nhận','Bắt đầu tự động điều khiển chuột và bàn phím?\nF8 để dừng. Vòng 0 chạy liên tục.') :return
+        if not confirmed and not messagebox.askyesno('Xác nhận','Bắt đầu tự động điều khiển chuột và bàn phím?\nF8 để dừng. V5 chạy đến hết ngày kết thúc; V4 vòng 0 chạy liên tục.') :return
         self.date_advance_value=self.date_advance.get();self.date_increment_value=increment;self.date_skip_weekends_value=self.date_skip_weekends.get()
         self.stop.clear();self.running=True;steps=copy.deepcopy(self.steps);rows=list(self.excel_rows) if self.excel_mode.get() else [{}]
         if use_windows:
@@ -372,7 +371,7 @@ class App:
         def work():
             n=0;current_date=run_date
             try:
-                while not self.stop.is_set() and ((use_windows and current_date<=end_date and n<loops) or (not use_windows and (loops==0 or n<loops))):
+                while not self.stop.is_set() and ((use_windows and current_date<=end_date) or (not use_windows and (loops==0 or n<loops))):
                     n+=1;self.events.put(('status',f'Đang chạy ngày {current_date:%d/%m/%Y}'))
                     day_windows=windows if use_windows else [(None,None)]
                     for window_index,(start_time,end_time) in enumerate(day_windows,1):
