@@ -169,7 +169,7 @@ class App:
         for segment in spec.split(','):
             segment=segment.strip()
             if not segment:continue
-            match=re.fullmatch(r'(\\d{2}:\\d{2})\\s*-\\s*(\\d{2}:\\d{2})',segment)
+            match=re.fullmatch(r'(\d{2}:\d{2})\s*-\s*(\d{2}:\d{2})',segment)
             if not match:raise ValueError('Khung giờ phải theo mẫu 06:00-14:30,14:30-23:30')
             a,b=(datetime.datetime.strptime(t,'%H:%M').time() for t in match.groups())
             if a>=b:raise ValueError('Giờ bắt đầu phải nhỏ hơn giờ kết thúc: '+segment)
