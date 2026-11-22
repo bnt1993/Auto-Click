@@ -12,12 +12,12 @@ ROOT.mkdir(parents=True, exist_ok=True)
 
 class App:
     def __init__(self, root):
-        self.root=root; root.title('Auto Click Recorder V4 - Windows'); root.geometry('1020x690')
+        self.root=root; root.title('Auto Click Recorder V5 - Windows'); root.geometry('1020x690')
         self.steps=[]; self.events=queue.Queue(); self.recording=False; self.running=False
         self.stop=threading.Event(); self.last=0; self.ml=None; self.kl=None; self.hotkey=None
         self.excel_path=''; self.excel_rows=[]; self.excel_headers=[]; self.schedule_job=None; self.schedule_at=tk.StringVar(value=(datetime.datetime.now()+datetime.timedelta(minutes=5)).strftime('%Y-%m-%d %H:%M:%S')); self.excel_mode=tk.BooleanVar(value=False); self.loop=tk.StringVar(value='5'); self.delay=tk.StringVar(value='0.3'); self.status=tk.StringVar(value='Sẵn sàng | F8: dừng khẩn cấp')
         self.date_start=tk.StringVar(value='2026-11-20'); self.date_advance=tk.BooleanVar(value=True); self.date_skip_weekends=tk.BooleanVar(value=False); self.date_increment=tk.StringVar(value='1')
-        self.build(); self.root.after(100,self.drain)
+        self.window_mode=tk.BooleanVar(value=True); self.date_end=tk.StringVar(value='2026-11-30'); self.window_ranges=tk.StringVar(value='06:00-14:30,14:30-23:30'); self.build(); self.root.after(100,self.drain)
         self.hotkey=keyboard.Listener(on_press=self.emergency); self.hotkey.start()
         root.protocol('WM_DELETE_WINDOW',self.close)
     def build(self):
@@ -44,6 +44,13 @@ class App:
         ttk.Label(dates,text='Số ngày tăng:').pack(side='left')
         ttk.Entry(dates,textvariable=self.date_increment,width=5).pack(side='left',padx=5)
         ttk.Checkbutton(dates,text='Bỏ qua thứ 7, CN',variable=self.date_skip_weekends).pack(side='left',padx=8)
+        windowbar=ttk.Frame(self.root,padding=(10,0,10,8));windowbar.pack(fill='x')
+        ttk.Checkbutton(windowbar,text='V5: Chạy từng khung giờ, hết ngày mới tăng ngày',variable=self.window_mode).pack(side='left',padx=3)
+        ttk.Label(windowbar,text='Đến ngày:').pack(side='left',padx=4)
+        ttk.Entry(windowbar,textvariable=self.date_end,width=12).pack(side='left')
+        ttk.Label(windowbar,text='Khung giờ:').pack(side='left',padx=4)
+        ttk.Entry(windowbar,textvariable=self.window_ranges,width=30).pack(side='left')
+        ttk.Button(windowbar,text='＋ Mẫu 4 ô ngày/giờ + tải',command=self.add_window_template).pack(side='left',padx=4)
         columns=('kind','data','wait'); self.tree=ttk.Treeview(self.root,columns=columns,show='headings',selectmode='browse')
         for col,txt,w in [('kind','Loại bước',160),('data','Dữ liệu / tọa độ / ảnh',650),('wait','Chờ trước (s)',110)]: self.tree.heading(col,text=txt); self.tree.column(col,width=w)
         self.tree.pack(fill='both',expand=True,padx=10,pady=5); self.tree.bind('<Double-1>',lambda e:self.edit())
@@ -113,7 +120,7 @@ class App:
         i=self.selected()
         if i is None:return
         step=copy.deepcopy(self.steps[i]); win=tk.Toplevel(self.root)
-        win.title(f'Sửa bước #{i+1}');win.geometry('540x490');win.transient(self.root);win.grab_set()
+        win.title(f'Sửa bước #{i+1}');win.geometry('600x600');win.transient(self.root);win.grab_set()
         ttk.Label(win,text=f'Bước {i+1}: {step.get("kind")}',font=('Segoe UI',13,'bold')).pack(anchor='w',padx=14,pady=10)
         frame=ttk.Frame(win,padding=12);frame.pack(fill='both',expand=True)
         values={}; kinds=('click','right_click','scroll','key','text','wait','wait_image','click_image','set_datetime','excel_text')
@@ -123,10 +130,10 @@ class App:
             var=tk.StringVar(value=str(value));ttk.Entry(row,textvariable=var).pack(side='left',fill='x',expand=True)
             values[name]=var
         add_field('kind',step.get('kind','click'))
-        keys=['wait','x','y','amount','value','seconds','image','timeout','confidence','column','format','mode','select_all','verify_image','calendar_image','day_image']
+        keys=['wait','x','y','amount','value','seconds','image','timeout','confidence','column','format','mode','select_all','verify_image','calendar_image','day_image','label']
         for key in keys:
             if key in step or key=='wait':add_field(key,step.get(key,0 if key=='wait' else ''))
-        ttk.Label(frame,text='Biến: {run_date}, {run_time}, {today}, {now}, {Tên cột Excel}\nNgày/giờ: mode=auto/text/calendar/hotkey. Auto nhập trực tiếp, kiểm tra verify_image nếu có; nếu thất bại dùng calendar_image và day_image. Để trống ảnh kiểm tra: không thể xác minh nhập thành công.',wraplength=480).pack(anchor='w',pady=8)
+        ttk.Label(frame,text='Biến: {run_date}, {window_start_time}, {window_start_date}, {window_end_time}, {window_end_date}, {Tên cột Excel}\nNgày/giờ: mode=auto/text/calendar/hotkey. Auto nhập trực tiếp, kiểm tra verify_image nếu có; nếu thất bại dùng calendar_image và day_image. Để trống ảnh kiểm tra: không thể xác minh nhập thành công.',wraplength=480).pack(anchor='w',pady=8)
         def commit():
             try:
                 d={}
@@ -140,6 +147,35 @@ class App:
                 self.steps[i]=d;self.refresh();self.tree.selection_set(str(i));win.destroy()
             except Exception as e:messagebox.showerror('Không lưu được',str(e),parent=win)
         ttk.Button(win,text='Lưu thay đổi',command=commit).pack(pady=10)
+
+    def add_window_template(self):
+        if self.steps and not messagebox.askyesno('Thêm mẫu V5','Thêm 8 bước vào cuối kịch bản hiện tại?\\nCác bước click vào ô cần được ghi hoặc chỉnh tọa độ trước khi chạy.'):
+            return
+        template=[]
+        for label,token in [('giờ bắt đầu','{window_start_time}'),('ngày bắt đầu','{window_start_date}'),('giờ kết thúc','{window_end_time}'),('ngày kết thúc','{window_end_date}')]:
+            template.append({'kind':'click','x':0,'y':0,'wait':0.2,'label':'Click ô '+label})
+            template.append({'kind':'set_datetime','value':token,'format':'%d/%m/%Y','mode':'auto','select_all':'true','wait':0.2,'label':'Nhập '+label})
+        template.extend([
+            {'kind':'click_image','image':'','timeout':20,'confidence':0.85,'wait':0.2,'label':'Bấm nút tải danh sách'},
+            {'kind':'wait_image','image':'','timeout':120,'confidence':0.85,'wait':0.2,'label':'Chờ dữ liệu sẵn sàng'},
+            {'kind':'click_image','image':'','timeout':20,'confidence':0.85,'wait':0.2,'label':'Bấm nút tải file'},
+        ])
+        self.steps.extend(template);self.refresh()
+        self.status.set('Đã thêm mẫu V5. Cần chỉnh tọa độ 4 ô và ảnh nút tải/dữ liệu sẵn sàng trước khi chạy.')
+
+    @staticmethod
+    def parse_windows(spec):
+        windows=[]
+        for segment in spec.split(','):
+            segment=segment.strip()
+            if not segment:continue
+            match=re.fullmatch(r'(\d{2}:\d{2})\s*-\s*(\d{2}:\d{2})',segment)
+            if not match:raise ValueError('Khung giờ phải theo mẫu 06:00-14:30,14:30-23:30')
+            a,b=(datetime.datetime.strptime(t,'%H:%M').time() for t in match.groups())
+            if a>=b:raise ValueError('Giờ bắt đầu phải nhỏ hơn giờ kết thúc: '+segment)
+            windows.append((a,b))
+        if not windows:raise ValueError('Cần ít nhất một khung giờ')
+        return windows
 
     def add_datetime_step(self):
         self.steps.append({'kind':'set_datetime','value':'{run_date}','format':'%d/%m/%Y','mode':'auto','select_all':'true','verify_image':'','calendar_image':'','day_image':'','timeout':10,'confidence':0.85,'wait':0.2});self.refresh()
@@ -185,6 +221,9 @@ class App:
         now=datetime.datetime.now()
         def replace(m):
             token=m.group(1)
+            if token in ('window_start_time','window_end_time','window_start_date','window_end_date'):
+                if token not in row:raise ValueError('Biến '+token+' chỉ dùng trong chế độ V5')
+                return row[token]
             if token=='run_date':return row.get('__run_date',now.date()).strftime('%d/%m/%Y')
             if token=='run_time':return row.get('__run_date',now.date()).strftime('%d/%m/%Y')+' '+now.strftime('%H:%M:%S')
             if token.startswith('run_date:'):return row.get('__run_date',now.date()).strftime(token[9:])
@@ -206,20 +245,20 @@ class App:
         self.steps[i],self.steps[i+d]=self.steps[i+d],self.steps[i];self.refresh();self.tree.selection_set(str(i+d))
     def save(self):
         p=filedialog.asksaveasfilename(initialdir=ROOT,defaultextension='.json',filetypes=[('Kịch bản JSON','*.json')]);
-        if p:pathlib.Path(p).write_text(json.dumps({'version':4,'steps':self.steps,'excel_path':self.excel_path,'excel_mode':self.excel_mode.get(),'schedule_at':self.schedule_at.get(),'date_start':self.date_start.get(),'date_advance':self.date_advance.get(),'date_increment':self.date_increment.get(),'date_skip_weekends':self.date_skip_weekends.get()},ensure_ascii=False,indent=2),encoding='utf-8');self.status.set('Đã lưu '+p)
+        if p:pathlib.Path(p).write_text(json.dumps({'version':5,'window_mode':self.window_mode.get(),'date_end':self.date_end.get(),'window_ranges':self.window_ranges.get(),'steps':self.steps,'excel_path':self.excel_path,'excel_mode':self.excel_mode.get(),'schedule_at':self.schedule_at.get(),'date_start':self.date_start.get(),'date_advance':self.date_advance.get(),'date_increment':self.date_increment.get(),'date_skip_weekends':self.date_skip_weekends.get()},ensure_ascii=False,indent=2),encoding='utf-8');self.status.set('Đã lưu '+p)
     def load(self):
         p=filedialog.askopenfilename(initialdir=ROOT,filetypes=[('Kịch bản JSON','*.json')]);
         if not p:return
         try:
             d=json.loads(pathlib.Path(p).read_text(encoding='utf-8'));steps=d['steps']
             if not isinstance(steps,list):raise ValueError('Sai định dạng')
-            self.steps=steps;self.refresh();self.schedule_at.set(d.get('schedule_at',self.schedule_at.get()));self.date_start.set(d.get('date_start',self.date_start.get()));self.date_advance.set(bool(d.get('date_advance',True)));self.date_increment.set(str(d.get('date_increment','1')));self.date_skip_weekends.set(bool(d.get('date_skip_weekends',False)));self.excel_mode.set(bool(d.get('excel_mode',False)));self.status.set('Đã mở '+p+' (Excel cần nạp lại khi mở)')
+            self.steps=steps;self.refresh();self.window_mode.set(bool(d.get('window_mode',False)));self.date_end.set(d.get('date_end',self.date_end.get()));self.window_ranges.set(d.get('window_ranges',self.window_ranges.get()));self.schedule_at.set(d.get('schedule_at',self.schedule_at.get()));self.date_start.set(d.get('date_start',self.date_start.get()));self.date_advance.set(bool(d.get('date_advance',True)));self.date_increment.set(str(d.get('date_increment','1')));self.date_skip_weekends.set(bool(d.get('date_skip_weekends',False)));self.excel_mode.set(bool(d.get('excel_mode',False)));self.status.set('Đã mở '+p+' (Excel cần nạp lại khi mở)')
         except Exception as e:messagebox.showerror('Lỗi mở file',str(e))
     def halt(self):self.stop.set();self.stop_record();self.status.set('Đang yêu cầu dừng...')
     def sleep(self,t):
         if self.stop.wait(max(0,float(t))):raise InterruptedError('Đã dừng')
     def find_image(self,path,step,timeout=10):
-        if not pathlib.Path(path).is_file():raise FileNotFoundError('Không tìm thấy ảnh: '+path)
+        if not path or not pathlib.Path(path).is_file():raise FileNotFoundError('Chưa cấu hình ảnh hoặc không tìm thấy ảnh: '+str(path))
         deadline=time.monotonic()+max(0,float(timeout))
         while not self.stop.is_set():
             try:
@@ -250,7 +289,10 @@ class App:
 
     def execute(self,s,row):
         kind=s['kind']
-        if kind in ('click','right_click'):pg.click(int(s['x']),int(s['y']),button='right' if kind=='right_click' else 'left')
+        if kind in ('click','right_click'):
+            x,y=int(s['x']),int(s['y'])
+            if x==0 and y==0:raise ValueError('Chưa cấu hình tọa độ click: '+str(s.get('label','')))
+            pg.click(x,y,button='right' if kind=='right_click' else 'left')
         elif kind=='scroll':pg.scroll(int(s['amount']))
         elif kind=='key':
             v=str(self.resolve(s['value'],row))
@@ -288,6 +330,7 @@ class App:
             else:raise ValueError('Chế độ chọn ngày không hợp lệ: '+mode)
         elif kind in ('wait_image','click_image'):
             deadline=time.monotonic()+float(s.get('timeout',20));image=s['image'];found=None
+            if not image or not pathlib.Path(image).is_file():raise FileNotFoundError('Thiếu ảnh mẫu: '+str(s.get('label',kind)))
             while time.monotonic()<deadline:
                 if self.stop.is_set():raise InterruptedError('Đã dừng')
                 try:found=pg.locateCenterOnScreen(image,confidence=float(s.get('confidence',0.85)))
@@ -307,23 +350,44 @@ class App:
             increment=int(self.date_increment.get())
             if increment<1 or increment>365:raise ValueError('Số ngày tăng phải từ 1 đến 365')
         except Exception as e:return messagebox.showerror('Ngày không hợp lệ',str(e))
+        use_windows=self.window_mode.get()
+        try:
+            windows=self.parse_windows(self.window_ranges.get()) if use_windows else []
+            end_date=datetime.date.fromisoformat(self.date_end.get().strip()) if use_windows else run_date
+            if use_windows and end_date<run_date:raise ValueError('Ngày kết thúc phải >= ngày bắt đầu')
+        except Exception as e:return messagebox.showerror('Cấu hình V5 không hợp lệ',str(e))
         if self.excel_mode.get() and not self.excel_rows:return messagebox.showerror('Thiếu Excel','Nạp file Excel trước khi chạy chế độ từng dòng')
-        if not confirmed and not messagebox.askyesno('Xác nhận','Bắt đầu tự động điều khiển chuột và bàn phím?\nF8 để dừng. Vòng 0 chạy liên tục.') :return
+        if not confirmed and not messagebox.askyesno('Xác nhận','Bắt đầu tự động điều khiển chuột và bàn phím?\nF8 để dừng. V5 chạy đến hết ngày kết thúc; V4 vòng 0 chạy liên tục.') :return
         self.date_advance_value=self.date_advance.get();self.date_increment_value=increment;self.date_skip_weekends_value=self.date_skip_weekends.get()
         self.stop.clear();self.running=True;steps=copy.deepcopy(self.steps);rows=list(self.excel_rows) if self.excel_mode.get() else [{}]
+        if use_windows:
+            for step in steps:
+                if step.get('kind') in ('click_image','wait_image') and not step.get('image'):
+                    self.running=False
+                    return messagebox.showerror('Thiếu ảnh mẫu','Cấu hình ảnh cho bước '+str(step.get('label',step['kind'])))
+                if step.get('kind')=='click' and (int(step.get('x',0)),int(step.get('y',0)))==(0,0):
+                    self.running=False
+                    return messagebox.showerror('Thiếu tọa độ','Cấu hình vị trí click: '+str(step.get('label','')))
         def work():
             n=0;current_date=run_date
             try:
-                while not self.stop.is_set() and (loops==0 or n<loops):
-                    n+=1;self.events.put(('status',f'Đang chạy vòng {n} - ngày {current_date:%d/%m/%Y}'))
-                    for rownum,source_row in enumerate(rows,1):
-                        row=dict(source_row);row['__run_date']=current_date
-                        if self.stop.is_set():raise InterruptedError('Đã dừng')
-                        self.events.put(('status',f'Vòng {n}, dòng Excel {rownum}/{len(rows)}'))
-                        for i,s in enumerate(steps):
-                            self.sleep(s.get('wait',0));self.execute(s,row)
-                        self.sleep(delay)
-                    if self.date_advance_value:
+                while not self.stop.is_set() and ((use_windows and current_date<=end_date) or (not use_windows and (loops==0 or n<loops))):
+                    n+=1;self.events.put(('status',f'Đang chạy ngày {current_date:%d/%m/%Y}'))
+                    day_windows=windows if use_windows else [(None,None)]
+                    for window_index,(start_time,end_time) in enumerate(day_windows,1):
+                        for rownum,source_row in enumerate(rows,1):
+                            row=dict(source_row);row['__run_date']=current_date
+                            if use_windows:
+                                row.update(window_start_time=start_time.strftime('%H:%M'),
+                                           window_end_time=end_time.strftime('%H:%M'),
+                                           window_start_date=current_date.strftime('%d/%m/%Y'),
+                                           window_end_date=current_date.strftime('%d/%m/%Y'))
+                            if self.stop.is_set():raise InterruptedError('Đã dừng')
+                            self.events.put(('status',f'Ngày {current_date:%d/%m/%Y} | khung {window_index}/{len(day_windows)} | Excel {rownum}/{len(rows)}'))
+                            for i,step in enumerate(steps):
+                                self.sleep(step.get('wait',0));self.execute(step,row)
+                            self.sleep(delay)
+                    if use_windows or self.date_advance_value:
                         current_date += datetime.timedelta(days=self.date_increment_value)
                         if self.date_skip_weekends_value:
                             while current_date.weekday()>=5:current_date+=datetime.timedelta(days=1)
